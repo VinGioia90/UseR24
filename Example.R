@@ -127,20 +127,27 @@ pl2 +  annotate("text",  x = 4, y = 4.25, label = paste(dow, date), vjust = 1, h
 ##################################################
 # Computational times under numerical experiment #
 ##################################################
+rm(list=ls())
 
-source("loadPackages_init.R")
-source("ModelFormula.R")
-source("DataGeneration.R")
-source("ModelFitting.R")
-source("FittingTimes")
+.rs.restartR()
+
+library(rstudioapi)
+root_dir <- dirname(rstudioapi::getActiveDocumentContext()$path)
+setwd(root_dir)
+
+
+source("Functions/loadPackages.R")
+source("Functions/ModelFormula.R")
+source("Functions/DataGeneration.R")
+source("Functions/ModelFitting.R")
+source("Functions/FittingTimes")
 
 nrun <- 1
 
 dgrid <- c(2,5,10,15,20)
 nobs <- 10000
 
-
-sim_mcdG_mcdF <- sim_est_efs(nobs, dgrid, nrun, expl_mean = c("x1", "x2", "x3"), expl_Theta = c("x1", "x2"))
+sim_mcdG_mcdF <- sim_est_efs(nobs, dgrid, expl_mean = c("x1", "x2", "x3"), expl_Theta = c("x1", "x2"))
 
 TIMES <- fit_time(sim_mcdG_mcdF, param = "mcd", dgrid = dgrid, nrun=1)
 
@@ -152,4 +159,4 @@ TIMES$sum_res
 #4 15 13.42818425 13.42818425 13.42818425  MCD
 #5 20 46.18585052 46.18585052 46.18585052  MCD
 
-source("FinalDetaching.R")
+source("Functions/FinalDetaching.R")
