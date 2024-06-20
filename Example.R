@@ -1,5 +1,7 @@
 rm(list=ls())
 
+.rs.restartR()
+
 library(rstudioapi)
 root_dir <- dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(root_dir)
@@ -16,14 +18,16 @@ setwd(root_dir)
 load("GEF14_d4.Rdata") 
 
 # load the needed packages  
-library(mgcViz)
 library(mgcv)
-# Uncomment the following line to install the SCM R package
-# devtools::install_github("VinGioia90/SCM")
-library(SCM)
+library(mgcViz)
 library(ggplot2)
 library(ggnewscale)
 library(lubridate)
+
+
+# Finally load the SCM
+devtools::install_github("VinGioia90/SCM")
+library(SCM)
 
 # Specify the dimension of the outcome 
 d <- 4 
@@ -66,31 +70,24 @@ plD <- check1D(fitD, list("doy")) +
 plS[[1]] 
 plD[[1]] 
 
-Sigma_pred_fitS <- predict(fitS, type = "response")
-Sigma_predMat_fitS <-  Sigma_mat(Sigma_pred_fitS[,-c(1 : d)])[[1]]
+
+# Get the predicted values: Mean + Var + Correlations 
+Sigma_pred_fitD <- predict(fitD, type = "response")
+
+# Get the correlation matrices (padded with variances on the diagonal) 
+Sigma_predMat_fitD <- lapply(1 : nrow(GEF14_d4), function(x) Sigma_mat(Sigma_pred_fitD[,-c(1 : d)])[[x]])
 
 
 # Analyse the ALEs of doy on the Var(y1) and the Corr(y1, y4)
 plot(ALE(fitD, "doy", type = "response",
          oind = SCM:::sel_elem(4)(1, 1))) +  l_ciPoly() + l_fitLine() + 
-  #annotate("text",  x = 230, y = 300, label = paste("Emp. Var. Residuals (h8) =", round(var(res[,1]),2)), vjust = 1, hjust = 1, cex = 5)
-  annotate("text",  x = 230, y = 300, label = paste("Static Var. (h8) =", round(Sigma_predMat_fitS[1, 1],2)), vjust = 1, hjust = 1, cex = 5)
-#mean(tapply(residuals(fitD, type="response")[,1], GEF14_d4$doy, var), na.rm=TRUE)
+  annotate("text",  x = 230, y = 300, label = paste("Ave. Var. (h8) =", round(mean(Sigma_pred_fitD[,5]),2)), vjust = 1, hjust = 1, cex = 5)
+
+
 
 plot(ALE(fitD, "doy", type = "response",
          oind = SCM:::sel_elem(4)(4, 1))) +  l_ciPoly() + l_fitLine() + 
-  #annotate("text",  x = 365/2, y = 0.25, label = "Cor(l_h8, l_h20)", vjust = 1, hjust = 1, cex = 5) + 
-  annotate("text",  x = 225, y = 0.25, label = paste("Static Cor. (h8, h20) = ", round(Sigma_predMat_fitS[4, 1],2)), vjust = 1, hjust = 1, cex = 5) 
-
-#for(i in 1:366){
-# AAA[i] <- cor(res[GEF14_d4$doy==i,1],res[GEF14_d4$doy==i,4])
-#}
-#mean(AAA,na.rm =TRUE)
-
-# Get the predicted values and extract the correlation matrix (padded with variances on the diagonal ) 
-
-Sigma_pred_fitD <- predict(fitD, type = "response")
-Sigma_predMat_fitD <- lapply(1 : nrow(GEF14_d4), function(x) Sigma_mat(Sigma_pred_fitD[,-c(1 : d)])[[x]])
+  annotate("text",  x = 225, y = 0.25, label = paste("Ave. Cor. (h8, h20) = ", round(mean(Sigma_pred_fitD[, 12]),2)), vjust = 1, hjust = 1, cex = 5) 
 
 # Select the days having minimum correlations between y1 and y4 and maximum variances of y1 
 idx_min_CorrD <- which.min(unlist(lapply(1 : length(Sigma_predMat_fitD), function(x) unlist(Sigma_predMat_fitD[[x]][4, 1]))))
@@ -106,9 +103,7 @@ col_var <- rev(colorspace::sequential_hcl(palette = "Red", n = 10)[1 : 5])
 label_xaxis <- c("h8","h12","h16","h20")
 label_yaxis <- c("h20","h16","h12","h8")
 
-
 days <- c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
-
 
 pl1 <- heatmap_FitCov(Sigma_predMat_fitD[[idx_min_CorrD]], d = d, range_var = NULL, range_corr = c(0, 1), label = "h", 
                       label_xaxis = label_xaxis, label_yaxis = label_yaxis,  col_var = col_var, col_cor = col_cor)
@@ -116,7 +111,6 @@ pl1 <- heatmap_FitCov(Sigma_predMat_fitD[[idx_min_CorrD]], d = d, range_var = NU
 date <- as.Date(paste(GEF14_d4[idx_min_CorrD, "year"], GEF14_d4[idx_min_CorrD, "doy"]), format = "%Y %j")
 dow <- days[wday(date)]
 pl1 +  annotate("text",  x=4, y = 4.25, label = paste(dow, date), vjust=1, hjust=1, cex = 7)   
-
 
 pl2 <- heatmap_FitCov(Sigma_predMat_fitD[[idx_max_VarD]], d = d, range_var = NULL, range_corr = c(0, 1), label = "h", 
                       label_xaxis = label_xaxis, label_yaxis = label_yaxis,  col_var = col_var, col_cor = col_cor)
@@ -127,23 +121,45 @@ pl2 +  annotate("text",  x = 4, y = 4.25, label = paste(dow, date), vjust = 1, h
 ##################################################
 # Computational times under numerical experiment #
 ##################################################
+
+#################################################################
+# !!!! This step is quite fragile:                              #
+# -) we are removing the CRAN version of mgcv                   #
+# -) we install the dveloper version                            #
+# -) we reinstall the CRAN version of mgcv                      #
+#                                                               # 
+# If you are not sure to control these steps, please trust the  #
+# developer version is able to speed up the model fitting       #
+# and don't run the following lines of code                     #
+#################################################################
 rm(list=ls())
 
+# Removing mgcv R package
+remove.packages("mgcv")
+
+# Restart R session
 .rs.restartR()
 
+# Get wd
 library(rstudioapi)
 root_dir <- dirname(rstudioapi::getActiveDocumentContext()$path)
 setwd(root_dir)
 
+# Install developer version
+devtools::install(paste0(root_dir, "/Functions/mgcv_developer/mgcv"))
 
-source("Functions/loadPackages.R")
-source("Functions/ModelFormula.R")
-source("Functions/DataGeneration.R")
-source("Functions/ModelFitting.R")
-source("Functions/FittingTimes")
+# Check
+if(packageVersion("mgcv") == 9.0){
+  print("!!! OK !!! you can go to the next step")
+} else {
+  print("!!! NO !!! If you run the following code your computational times are grater than those reported")
+}
 
+# Load all the needed functions and packages
+source("Functions/Utilities.R")
+
+# Running the experiment
 nrun <- 1
-
 dgrid <- c(2,5,10,15,20)
 nobs <- 10000
 
@@ -159,4 +175,15 @@ TIMES$sum_res
 #4 15 13.42818425 13.42818425 13.42818425  MCD
 #5 20 46.18585052 46.18585052 46.18585052  MCD
 
-source("Functions/FinalDetaching.R")
+
+remove.packages("mgcv")
+install.packages("mgcv") #!!! Digit yes !!!
+
+if(packageVersion("mgcv") == 9.0){
+  print("!!! NO !!! Your version is the developer version. Find a way to get the CRAN version")
+} else {
+  print("OK. Yhe process ends succesfully")
+}
+
+
+
