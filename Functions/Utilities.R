@@ -1,6 +1,8 @@
 # load packages 
 library(mgcv)
 library(SCM)
+library(bamlss)
+library(mvnchol)
 library(microbenchmark)
 
 library(Rcpp)
@@ -155,10 +157,10 @@ sim_est_efs <- function(nobs, dgrid, expl_mean, expl_Theta){
       out$sim <- datagen(d = dgrid[jj], n = nobs, seed = 13 * dgrid[jj])
       out$foo <-  mformula(d = dgrid[jj], expl_mean = expl_mean, expl_Theta = expl_Theta)
       
-      time <- microbenchmark(fit <- gam_scm(out$foo,
+      time_efs <- microbenchmark(fit <- gam_scm(out$foo,
                                             family=mvn_scm(d = dgrid[jj]),
                                             optimizer= "efs",  data = as.data.frame(out$sim$data)), times = 1L)
-      out$time <- time$time                 
+      out$time_efs <- time_efs$time                 
       return(out)
     })
     return(dss)
@@ -185,10 +187,10 @@ fit_time <- function(obj, param = "mcd", dgrid = NULL, nrun = 1) {
   if(param == "mcd") param2 <- "MCD" 
   
   data_time <-  data.frame(unlist(lapply(1 : length(dgrid),
-                                         function(z) unlist(lapply(1 : nrun, function(x) obj[[x]]$gen[[z]]$time / (1e9 * 60))))),
+                                         function(z) unlist(lapply(1 : nrun, function(x) obj[[x]]$gen[[z]]$time_efs / (1e9 * 60))))),
                            rep(dgrid, each = nrun))
   
-  data_time <- cbind(data_time, rep(param2, each = length(dgrid)))
+  data_time <- cbind(data_time, rep("efs", each = length(dgrid)))
   colnames(data_time) <- c("time", "d", "Type")
   
   data <- aggregate(data_time$time, list(data_time$d), FUN = mean)
