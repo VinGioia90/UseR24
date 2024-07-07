@@ -4,7 +4,7 @@ heatmap_FitCov <- function(PredCov, d, range_var = NULL, range_corr = c(0, 1), l
   diagDf <- data.frame(
     var1 = c(paste0(label, d : 1)),
     var2 = c(paste0(label, 1 : d)),
-    Var =  diag(PredCov)[d : 1]
+    Stdev =  sqrt(diag(PredCov)[d : 1])
   )
   
   sDf <- data.frame(X1 = rep(NA, d ^ 2), X2 = rep(NA, d ^ 2), Corr = rep(NA, d ^ 2)) 
@@ -36,11 +36,13 @@ heatmap_FitCov <- function(PredCov, d, range_var = NULL, range_corr = c(0, 1), l
     geom_tile(aes(fill = Corr)) +
     scale_fill_gradientn(colors =  col_cor, limits = range_corr, na.value = "white") +
     new_scale_fill() +
-    geom_tile(data = diagDf, aes(var1, var2, fill = Var)) +
+    geom_tile(data = diagDf, aes(var1, var2, fill = Stdev)) +
     scale_fill_gradientn(colors = col_var) +
     theme(aspect.ratio = 1,
           axis.title.x = element_blank(),
           axis.title.y = element_blank(),
+          axis.text.x=element_text(size=15),
+          axis.text.y=element_text(size=15),
           legend.key.width  = unit(1, "lines"),
           legend.key.height = unit(1, "lines"),
           legend.text=element_text(size=12),
